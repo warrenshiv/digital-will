@@ -1,83 +1,67 @@
-type Customer = record {
+type Asset = record {
+  id : nat64;
+  value : nat64;
+  name : text;
+  created_at : nat64;
+  will_id : nat64;
+};
+type AssetPayload = record { value : nat64; name : text; will_id : nat64 };
+type AssignExecutorPayload = record { will_id : nat64; executor_id : nat64 };
+type Beneficiary = record {
+  id : nat64;
+  name : text;
+  created_at : nat64;
+  share : nat8;
+  will_id : nat64;
+};
+type BeneficiaryPayload = record { name : text; share : nat8; will_id : nat64 };
+type Executor = record {
   id : nat64;
   contact : text;
   name : text;
   created_at : nat64;
+};
+type ExecutorPayload = record { contact : text; name : text };
+type Result = variant { Ok : Asset; Err : text };
+type Result_1 = variant { Ok : Beneficiary; Err : text };
+type Result_2 = variant { Ok : Will; Err : text };
+type Result_3 = variant { Ok : Executor; Err : text };
+type Result_4 = variant { Ok : User; Err : text };
+type Result_5 = variant { Ok : vec Asset; Err : text };
+type Result_6 = variant { Ok : vec Beneficiary; Err : text };
+type Result_7 = variant { Ok : vec Executor; Err : text };
+type Result_8 = variant { Ok : vec User; Err : text };
+type Result_9 = variant { Ok : vec Will; Err : text };
+type User = record {
+  id : nat64;
+  name : text;
+  created_at : nat64;
   email : text;
 };
-type CustomerPayload = record { contact : text; name : text; email : text };
-type Inventory = record {
+type UserPayload = record { name : text; email : text };
+type Will = record {
   id : nat64;
-  cost : nat32;
+  is_executed : bool;
+  assets : vec Asset;
   created_at : nat64;
-  quantity : nat32;
-  part_name : text;
+  user_id : nat64;
+  beneficiaries : vec Beneficiary;
+  executor_id : nat64;
 };
-type InventoryPayload = record {
-  cost : nat32;
-  quantity : nat32;
-  part_name : text;
-};
-type Invoice = record {
-  id : nat64;
-  date : nat64;
-  created_at : nat64;
-  customer_id : nat64;
-  amount : nat32;
-};
-type InvoicePayload = record { customer_id : nat64; amount : nat32 };
-type Result = variant { Ok : Customer; Err : text };
-type Result_1 = variant { Ok : Inventory; Err : text };
-type Result_10 = variant { Ok : nat32; Err : text };
-type Result_2 = variant { Ok : Invoice; Err : text };
-type Result_3 = variant { Ok : Service; Err : text };
-type Result_4 = variant { Ok : Vehicle; Err : text };
-type Result_5 = variant { Ok : vec Customer; Err : text };
-type Result_6 = variant { Ok : vec Inventory; Err : text };
-type Result_7 = variant { Ok : vec Invoice; Err : text };
-type Result_8 = variant { Ok : vec Service; Err : text };
-type Result_9 = variant { Ok : vec Vehicle; Err : text };
-type Service = record {
-  id : nat64;
-  vehicle_id : nat64;
-  cost : nat32;
-  date : nat64;
-  description : text;
-  created_at : nat64;
-};
-type ServicePayload = record {
-  vehicle_id : nat64;
-  cost : nat32;
-  description : text;
-};
-type Vehicle = record {
-  id : nat64;
-  model : text;
-  make : text;
-  year : nat32;
-  created_at : nat64;
-  customer_id : nat64;
-  license_plate : text;
-};
-type VehiclePayload = record {
-  model : text;
-  make : text;
-  year : nat32;
-  customer_id : nat64;
-  license_plate : text;
-};
+type WillPayload = record { user_id : nat64; executor_id : nat64 };
 service : {
-  create_customer : (CustomerPayload) -> (Result);
-  create_inventory_item : (InventoryPayload) -> (Result_1);
-  create_invoice : (InvoicePayload) -> (Result_2);
-  create_service : (ServicePayload) -> (Result_3);
-  create_vehicle : (VehiclePayload) -> (Result_4);
-  get_all_customers : () -> (Result_5) query;
-  get_all_inventory_items : () -> (Result_6) query;
-  get_all_invoices : () -> (Result_7) query;
-  get_all_services : () -> (Result_8) query;
-  get_all_vehicles : () -> (Result_9) query;
-  get_customer_invoices : (nat64) -> (Result_10) query;
-  get_inventory_quantity : (text) -> (Result_10) query;
-  update_customer : (nat64, CustomerPayload) -> (Result);
+  add_asset : (AssetPayload) -> (Result);
+  add_beneficiary : (BeneficiaryPayload) -> (Result_1);
+  assign_executor : (AssignExecutorPayload) -> (Result_2);
+  create_executor : (ExecutorPayload) -> (Result_3);
+  create_user : (UserPayload) -> (Result_4);
+  create_will : (WillPayload) -> (Result_2);
+  get_all_assets : () -> (Result_5) query;
+  get_all_beneficiaries : () -> (Result_6) query;
+  get_all_executors : () -> (Result_7) query;
+  get_all_users : () -> (Result_8) query;
+  get_all_wills : () -> (Result_9) query;
+  get_executor : (nat64) -> (Result_3) query;
+  get_user : (nat64) -> (Result_4) query;
+  get_will : (nat64) -> (Result_2) query;
 }

@@ -1,31 +1,27 @@
 #[macro_use]
 extern crate serde;
 use candid::{Decode, Encode};
-// use chrono::{Utc, DateTime};
 use ic_cdk::api::time;
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
-use regex::Regex;
 use std::{borrow::Cow, cell::RefCell};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type IdCell = Cell<u64, Memory>;
 
 #[derive(candid::CandidType, Serialize, Deserialize, Clone, Default)]
-struct Customer {
+struct User {
     id: u64,
     name: String,
-    contact: String,
     email: String,
     created_at: u64,
 }
 
-impl Customer {
-    fn new(id: u64, name: String, contact: String, email: String) -> Self {
+impl User {
+    fn new(id: u64, name: String, email: String) -> Self {
         Self {
             id,
             name,
-            contact,
             email,
             created_at: time(),
         }
@@ -33,103 +29,92 @@ impl Customer {
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Clone, Default)]
-struct Vehicle {
+struct Will {
     id: u64,
-    customer_id: u64,
-    make: String,
-    model: String,
-    year: u32,
-    license_plate: String,
+    user_id: u64,
+    executor_id: u64,
+    assets: Vec<Asset>,
+    beneficiaries: Vec<Beneficiary>,
+    created_at: u64,
+    is_executed: bool,
+}
+
+impl Will {
+    fn new(id: u64, user_id: u64, executor_id: u64) -> Self {
+        Self {
+            id,
+            user_id,
+            executor_id,
+            assets: Vec::new(),
+            beneficiaries: Vec::new(),
+            created_at: time(),
+            is_executed: false,
+        }
+    }
+}
+
+#[derive(candid::CandidType, Serialize, Deserialize, Clone, Default)]
+struct Asset {
+    id: u64,
+    will_id: u64,
+    name: String,
+    value: u64,
     created_at: u64,
 }
 
-impl Vehicle {
-    fn new(
-        id: u64,
-        customer_id: u64,
-        make: String,
-        model: String,
-        year: u32,
-        license_plate: String,
-    ) -> Self {
+impl Asset {
+    fn new(id: u64, will_id: u64, name: String, value: u64) -> Self {
         Self {
             id,
-            customer_id,
-            make,
-            model,
-            year,
-            license_plate,
+            will_id,
+            name,
+            value,
             created_at: time(),
         }
     }
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Clone, Default)]
-struct Service {
+struct Beneficiary {
     id: u64,
-    vehicle_id: u64,
-    description: String,
-    cost: u32,
-    date: u64,
+    will_id: u64,
+    name: String,
+    share: u8,
     created_at: u64,
 }
 
-impl Service {
-    fn new(id: u64, vehicle_id: u64, description: String, cost: u32, date: u64) -> Self {
+impl Beneficiary {
+    fn new(id: u64, will_id: u64, name: String, share: u8) -> Self {
         Self {
             id,
-            vehicle_id,
-            description,
-            cost,
-            date,
+            will_id,
+            name,
+            share,
             created_at: time(),
         }
     }
 }
 
 #[derive(candid::CandidType, Serialize, Deserialize, Clone, Default)]
-struct Inventory {
+struct Executor {
     id: u64,
-    part_name: String,
-    quantity: u32,
-    cost: u32,
+    name: String,
+    contact: String,
     created_at: u64,
 }
 
-impl Inventory {
-    fn new(id: u64, part_name: String, quantity: u32, cost: u32) -> Self {
+impl Executor {
+    fn new(id: u64, name: String, contact: String) -> Self {
         Self {
             id,
-            part_name,
-            quantity,
-            cost,
+            name,
+            contact,
             created_at: time(),
         }
     }
 }
 
-#[derive(candid::CandidType, Serialize, Deserialize, Clone, Default)]
-struct Invoice {
-    id: u64,
-    customer_id: u64,
-    amount: u32,
-    date: u64,
-    created_at: u64,
-}
-
-impl Invoice {
-    fn new(id: u64, customer_id: u64, amount: u32, date: u64) -> Self {
-        Self {
-            id,
-            customer_id,
-            amount,
-            date,
-            created_at: time(),
-        }
-    }
-}
-
-impl Storable for Customer {
+impl Storable for User {
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
     }
@@ -139,12 +124,12 @@ impl Storable for Customer {
     }
 }
 
-impl BoundedStorable for Customer {
+impl BoundedStorable for User {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
 
-impl Storable for Vehicle {
+impl Storable for Will {
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
     }
@@ -154,12 +139,27 @@ impl Storable for Vehicle {
     }
 }
 
-impl BoundedStorable for Vehicle {
+impl BoundedStorable for Will {
+    const MAX_SIZE: u32 = 4096;
+    const IS_FIXED_SIZE: bool = false;
+}
+
+impl Storable for Asset {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+impl BoundedStorable for Asset {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
 
-impl Storable for Service {
+impl Storable for Beneficiary {
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
     }
@@ -169,12 +169,12 @@ impl Storable for Service {
     }
 }
 
-impl BoundedStorable for Service {
+impl BoundedStorable for Beneficiary {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
 
-impl Storable for Inventory {
+impl Storable for Executor {
     fn to_bytes(&self) -> Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
     }
@@ -184,22 +184,7 @@ impl Storable for Inventory {
     }
 }
 
-impl BoundedStorable for Inventory {
-    const MAX_SIZE: u32 = 1024;
-    const IS_FIXED_SIZE: bool = false;
-}
-
-impl Storable for Invoice {
-    fn to_bytes(&self) -> Cow<[u8]> {
-        Cow::Owned(Encode!(self).unwrap())
-    }
-
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
-    }
-}
-
-impl BoundedStorable for Invoice {
+impl BoundedStorable for Executor {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
@@ -214,27 +199,27 @@ thread_local! {
             .expect("Cannot create a counter")
     );
 
-    static CUSTOMERS_STORAGE: RefCell<StableBTreeMap<u64, Customer, Memory>> =
+    static USERS_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
         RefCell::new(StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1)))
     ));
 
-    static VEHICLES_STORAGE: RefCell<StableBTreeMap<u64, Vehicle, Memory>> =
+    static WILLS_STORAGE: RefCell<StableBTreeMap<u64, Will, Memory>> =
         RefCell::new(StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(2)))
     ));
 
-    static SERVICES_STORAGE: RefCell<StableBTreeMap<u64, Service, Memory>> =
+    static ASSETS_STORAGE: RefCell<StableBTreeMap<u64, Asset, Memory>> =
         RefCell::new(StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
     ));
 
-    static INVENTORY_STORAGE: RefCell<StableBTreeMap<u64, Inventory, Memory>> =
+    static BENEFICIARIES_STORAGE: RefCell<StableBTreeMap<u64, Beneficiary, Memory>> =
         RefCell::new(StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(4)))
     ));
 
-    static INVOICES_STORAGE: RefCell<StableBTreeMap<u64, Invoice, Memory>> =
+    static EXECUTORS_STORAGE: RefCell<StableBTreeMap<u64, Executor, Memory>> =
         RefCell::new(StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(5)))
     ));
@@ -242,79 +227,193 @@ thread_local! {
 
 // Payloads Definitions
 
-// Customer Payload
+// Payloads for creating and managing users
 #[derive(candid::CandidType, Deserialize, Serialize)]
-struct CustomerPayload {
+struct UserPayload {
     name: String,
-    contact: String,
     email: String,
 }
 
-// Vehicle Payload
+// Payloads for creating and managing wills
 #[derive(candid::CandidType, Deserialize, Serialize)]
-struct VehiclePayload {
-    customer_id: u64,
-    make: String,
-    model: String,
-    year: u32,
-    license_plate: String,
+struct WillPayload {
+    user_id: u64,
+    executor_id: u64,
 }
 
-// Service Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
-struct ServicePayload {
-    vehicle_id: u64,
-    description: String,
-    cost: u32,
+struct AssetPayload {
+    will_id: u64,
+    name: String,
+    value: u64,
 }
 
-// Inventory Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
-struct InventoryPayload {
-    part_name: String,
-    quantity: u32,
-    cost: u32,
+struct BeneficiaryPayload {
+    will_id: u64,
+    name: String,
+    share: u8,
 }
 
-//  Invoice Payload
 #[derive(candid::CandidType, Deserialize, Serialize)]
-struct InvoicePayload {
-    customer_id: u64,
-    amount: u32,
+struct ExecutorPayload {
+    name: String,
+    contact: String,
 }
 
-// Functions to create and get entities
+// AsignExecutor Payload
+#[derive(candid::CandidType, Deserialize, Serialize)]
+struct AssignExecutorPayload {
+    will_id: u64,
+    executor_id: u64,
+}
+
+// Function to create and manage users
 
 #[ic_cdk::update]
-fn create_customer(payload: CustomerPayload) -> Result<Customer, String> {
-    if payload.name.is_empty() || payload.contact.is_empty() || payload.email.is_empty() {
-        return Err("Name, contact, and email cannot be empty".to_string());
+fn create_user(payload: UserPayload) -> Result<User, String> {
+    // Ensure the user payload is valid
+
+    if payload.name.is_empty() {
+        return Err("Name cannot be empty".to_string());
     }
 
-    // Validate email format
-    let email_regex = Regex::new(r"^\S+@\S+\.\S+$").unwrap();
-    if !email_regex.is_match(&payload.email) {
-        return Err("Invalid email format".to_string());
+    if payload.email.is_empty() {
+        return Err("Email cannot be empty".to_string());
     }
 
-    // Validate contact format
-    let contact_regex = Regex::new(r"^\d{10}$").unwrap();
-    if !contact_regex.is_match(&payload.contact) {
-        return Err("Invalid contact format".to_string());
+    // Generate a new ID for the user
+    let id = ID_COUNTER.with(|counter| {
+        let current_value = *counter.borrow().get();
+        counter
+            .borrow_mut()
+            .set(current_value + 1)
+            .expect("Failed to increment ID counter");
+        current_value
+    });
+
+    let user = User::new(id, payload.name, payload.email);
+    USERS_STORAGE.with(|storage| storage.borrow_mut().insert(user.id, user.clone()));
+    Ok(user)
+}
+
+// Functions to create executor
+#[ic_cdk::update]
+fn create_executor(payload: ExecutorPayload) -> Result<Executor, String> {
+    // Ensure the executor payload is valid
+    if payload.name.is_empty() {
+        return Err("Name cannot be empty".to_string());
     }
 
-    // Validate email uniqueness
-    let email_exists = CUSTOMERS_STORAGE.with(|storage| {
+    if payload.contact.is_empty() {
+        return Err("Contact cannot be empty".to_string());
+    }
+
+    // Generate a new ID for the executor
+    let id = ID_COUNTER.with(|counter| {
+        let current_value = *counter.borrow().get();
+        counter
+            .borrow_mut()
+            .set(current_value + 1)
+            .expect("Failed to increment ID counter");
+        current_value
+    });
+
+    let executor = Executor::new(id, payload.name, payload.contact);
+
+    EXECUTORS_STORAGE.with(|storage| storage.borrow_mut().insert(executor.id, executor.clone()));
+    Ok(executor)
+}
+
+// Functions to create and manage entities
+
+#[ic_cdk::update]
+fn create_will(payload: WillPayload) -> Result<Will, String> {
+    // Ensure the user id and executor id are valid
+    if USERS_STORAGE
+        .with(|storage| storage.borrow().get(&payload.user_id))
+        .is_none()
+    {
+        return Err("User not found".to_string());
+    }
+
+    if EXECUTORS_STORAGE
+        .with(|storage| storage.borrow().get(&payload.executor_id))
+        .is_none()
+    {
+        return Err("Executor not found".to_string());
+    }
+
+    let id = ID_COUNTER.with(|counter| {
+        let current_value = *counter.borrow().get();
+        counter
+            .borrow_mut()
+            .set(current_value + 1)
+            .expect("Failed to increment ID counter");
+        current_value
+    });
+
+    let will = Will::new(id, payload.user_id, payload.executor_id);
+    WILLS_STORAGE.with(|storage| storage.borrow_mut().insert(will.id, will.clone()));
+    Ok(will)
+}
+
+#[ic_cdk::update]
+fn add_asset(payload: AssetPayload) -> Result<Asset, String> {
+    // Validate the asset payload
+    if payload.name.is_empty() {
+        return Err("Name cannot be empty".to_string());
+    }
+
+    // Validate the asset value
+    if payload.value == 0 {
+        return Err("Value cannot be zero".to_string());
+    }
+
+    // Ensure the will id is valid
+    if WILLS_STORAGE
+        .with(|storage| storage.borrow().get(&payload.will_id))
+        .is_none()
+    {
+        return Err("Will not found".to_string());
+    }
+
+    let id = ID_COUNTER.with(|counter| {
+        let current_value = *counter.borrow().get();
+        counter
+            .borrow_mut()
+            .set(current_value + 1)
+            .expect("Failed to increment ID counter");
+        current_value
+    });
+
+    let asset = Asset::new(id, payload.will_id, payload.name, payload.value);
+    ASSETS_STORAGE.with(|storage| storage.borrow_mut().insert(asset.id, asset.clone()));
+    Ok(asset)
+}
+
+#[ic_cdk::update]
+fn add_beneficiary(payload: BeneficiaryPayload) -> Result<Beneficiary, String> {
+    // Validate the beneficiary payload
+    if payload.name.is_empty() {
+        return Err("Name cannot be empty".to_string());
+    }
+
+    // Validate the beneficiary share
+    if payload.share == 0 {
+        return Err("Share cannot be zero".to_string());
+    }
+
+    // Ensure the will id is valid
+    let mut will = WILLS_STORAGE.with(|storage| {
         storage
             .borrow()
-            .iter()
-            .any(|(_, customer)| customer.email == payload.email)
-    });
+            .get(&payload.will_id)
+            .clone()
+            .ok_or_else(|| "Will not found".to_string())
+    })?;
 
-    if email_exists {
-        return Err("Email already exists".to_string());
-    }
-
+    // Generate a new ID for the beneficiary
     let id = ID_COUNTER.with(|counter| {
         let current_value = *counter.borrow().get();
         counter
@@ -324,288 +423,167 @@ fn create_customer(payload: CustomerPayload) -> Result<Customer, String> {
         current_value
     });
 
-    let customer = Customer::new(id, payload.name, payload.contact, payload.email);
-    CUSTOMERS_STORAGE.with(|storage| storage.borrow_mut().insert(customer.id, customer.clone()));
-    Ok(customer)
+    let beneficiary = Beneficiary::new(id, payload.will_id, payload.name, payload.share);
+
+    // Add the new beneficiary to the will
+    will.beneficiaries.push(beneficiary.clone());
+
+    // Update the will in storage with the new beneficiary added
+    WILLS_STORAGE.with(|storage| {
+        storage.borrow_mut().insert(will.id, will.clone());
+    });
+
+    // Store the beneficiary in the beneficiaries storage
+    BENEFICIARIES_STORAGE.with(|storage| {
+        storage
+            .borrow_mut()
+            .insert(beneficiary.id, beneficiary.clone())
+    });
+
+    Ok(beneficiary)
 }
 
-// Function to update the profile of the user
 #[ic_cdk::update]
-fn update_customer(id: u64, payload: CustomerPayload) -> Result<Customer, String> {
-    if payload.name.is_empty() || payload.contact.is_empty() || payload.email.is_empty() {
-        return Err("Name, contact, and email cannot be empty".to_string());
-    }
+fn assign_executor(payload: AssignExecutorPayload) -> Result<Will, String> {
+    WILLS_STORAGE.with(|storage| {
+        let mut storage_ref = storage.borrow_mut();
 
-    // Validate the customer exists
-    let customer_exists = CUSTOMERS_STORAGE.with(|storage| storage.borrow().contains_key(&id));
-    if !customer_exists {
-        return Err("Customer ID does not exist.".to_string());
-    }
+        // Retrieve the will, return an error if not found
+        let mut will = storage_ref
+            .get(&payload.will_id)
+            .ok_or_else(|| "Will not found".to_string())?
+            .clone();
 
-    // Validate email format
-    let email_regex = Regex::new(r"^\S+@\S+\.\S+$").unwrap();
-    if !email_regex.is_match(&payload.email) {
-        return Err("Invalid email format".to_string());
-    }
+        // Ensure the executor id is valid
+        if EXECUTORS_STORAGE
+            .with(|storage| storage.borrow().get(&payload.executor_id))
+            .is_none()
+        {
+            return Err("Executor not found".to_string());
+        }
 
-    // Validate contact format
-    let contact_regex = Regex::new(r"^\d{10}$").unwrap();
-    if !contact_regex.is_match(&payload.contact) {
-        return Err("Invalid contact format".to_string());
-    }
+        // Modify the executor_id
+        will.executor_id = payload.executor_id;
 
-    // Validate email uniqueness
-    let email_exists = CUSTOMERS_STORAGE.with(|storage| {
+        // Insert the modified will back into the storage
+        storage_ref.insert(payload.will_id, will.clone());
+
+        // Return the updated will
+        Ok(will)
+    })
+}
+
+// Retrieve functions
+
+#[ic_cdk::query]
+fn get_user(user_id: u64) -> Result<User, String> {
+    USERS_STORAGE.with(|storage| {
         storage
             .borrow()
-            .iter()
-            .any(|(_, customer)| customer.email == payload.email)
-    });
-
-    if email_exists {
-        return Err("Email already exists".to_string());
-    }
-
-    let customer = Customer::new(id, payload.name, payload.contact, payload.email);
-    CUSTOMERS_STORAGE.with(|storage| storage.borrow_mut().insert(customer.id, customer.clone()));
-    Ok(customer)
+            .get(&user_id)
+            .clone()
+            .ok_or_else(|| "User not found".to_string())
+    })
 }
 
-// Function to retrieve all customers and throw an error if no customers are found
 #[ic_cdk::query]
-fn get_all_customers() -> Result<Vec<Customer>, String> {
-    CUSTOMERS_STORAGE.with(|storage| {
-        let customers: Vec<Customer> = storage
+fn get_all_users() -> Result<Vec<User>, String> {
+    USERS_STORAGE.with(|storage| {
+        let users: Vec<User> = storage
             .borrow()
             .iter()
-            .map(|(_, customer)| customer.clone())
+            .map(|(_, user)| user.clone())
             .collect();
-        if customers.is_empty() {
-            Err("No customers found.".to_string())
+        if users.is_empty() {
+            Err("No users found.".to_string())
         } else {
-            Ok(customers)
+            Ok(users)
         }
     })
 }
 
-#[ic_cdk::update]
-fn create_vehicle(payload: VehiclePayload) -> Result<Vehicle, String> {
-    if payload.make.is_empty() || payload.model.is_empty() || payload.license_plate.is_empty() {
-        return Err("Make, model, and license plate cannot be empty".to_string());
-    }
-
-    // Check if customer exists
-    let customer_exists =
-        CUSTOMERS_STORAGE.with(|storage| storage.borrow().contains_key(&payload.customer_id));
-    if !customer_exists {
-        return Err("Customer ID does not exist.".to_string());
-    }
-
-    // Validate license plate format
-    let license_plate_regex = Regex::new(r"^[A-Z]{2}-\d{2}-[A-Z]{2}-\d{4}$").unwrap();
-    if !license_plate_regex.is_match(&payload.license_plate) {
-        return Err("Invalid license plate format".to_string());
-    }
-
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter
-            .borrow_mut()
-            .set(current_value + 1)
-            .expect("Failed to increment ID counter");
-        current_value
-    });
-
-    let vehicle = Vehicle::new(
-        id,
-        payload.customer_id,
-        payload.make,
-        payload.model,
-        payload.year,
-        payload.license_plate,
-    );
-    VEHICLES_STORAGE.with(|storage| storage.borrow_mut().insert(vehicle.id, vehicle.clone()));
-    Ok(vehicle)
-}
-
-// Function to retrieve all vehicles, handling the case where no vehicles are found
 #[ic_cdk::query]
-fn get_all_vehicles() -> Result<Vec<Vehicle>, String> {
-    VEHICLES_STORAGE.with(|storage| {
-        let vehicles: Vec<Vehicle> = storage
-            .borrow()
-            .iter()
-            .map(|(_, vehicle)| vehicle.clone())
-            .collect();
-        if vehicles.is_empty() {
-            Err("No vehicles found.".to_string())
-        } else {
-            Ok(vehicles)
-        }
-    })
-}
-
-#[ic_cdk::update]
-fn create_service(payload: ServicePayload) -> Result<Service, String> {
-    if payload.description.is_empty() {
-        return Err("Description cannot be empty".to_string());
-    }
-
-    // Check if vehicle exists
-    let vehicle_exists =
-        VEHICLES_STORAGE.with(|storage| storage.borrow().contains_key(&payload.vehicle_id));
-    if !vehicle_exists {
-        return Err("Vehicle ID does not exist.".to_string());
-    }
-
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter
-            .borrow_mut()
-            .set(current_value + 1)
-            .expect("Failed to increment ID counter");
-        current_value
-    });
-
-    let service = Service::new(
-        id,
-        payload.vehicle_id,
-        payload.description,
-        payload.cost,
-        time(),
-    );
-    SERVICES_STORAGE.with(|storage| storage.borrow_mut().insert(service.id, service.clone()));
-    Ok(service)
-}
-
-// Function to retrieve all services, handling the case where no services are found
-#[ic_cdk::query]
-fn get_all_services() -> Result<Vec<Service>, String> {
-    SERVICES_STORAGE.with(|storage| {
-        let services: Vec<Service> = storage
-            .borrow()
-            .iter()
-            .map(|(_, service)| service.clone())
-            .collect();
-        if services.is_empty() {
-            Err("No services found.".to_string())
-        } else {
-            Ok(services)
-        }
-    })
-}
-
-#[ic_cdk::update]
-fn create_inventory_item(payload: InventoryPayload) -> Result<Inventory, String> {
-    if payload.part_name.is_empty() {
-        return Err("Part name cannot be empty".to_string());
-    }
-
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter
-            .borrow_mut()
-            .set(current_value + 1)
-            .expect("Failed to increment ID counter");
-        current_value
-    });
-
-    let inventory = Inventory::new(id, payload.part_name, payload.quantity, payload.cost);
-    INVENTORY_STORAGE.with(|storage| storage.borrow_mut().insert(inventory.id, inventory.clone()));
-    Ok(inventory)
-}
-
-// Function to retrieve the quantity of a specific part name in the inventory
-#[ic_cdk::query]
-fn get_inventory_quantity(part_name: String) -> Result<u32, String> {
-    INVENTORY_STORAGE.with(|storage| {
-        let items: Vec<Inventory> = storage
-            .borrow()
-            .iter()
-            .map(|(_, item)| item.clone())
-            .collect();
-
-        let item = items.iter().find(|item| item.part_name == part_name);
-
-        match item {
-            Some(inventory_item) => Ok(inventory_item.quantity),
-            None => Err("Part name not found in inventory.".to_string()),
-        }
-    })
-}
-
-// Function to retrieve all inventory items, handling the case where no items are found
-#[ic_cdk::query]
-fn get_all_inventory_items() -> Result<Vec<Inventory>, String> {
-    INVENTORY_STORAGE.with(|storage| {
-        let items: Vec<Inventory> = storage
-            .borrow()
-            .iter()
-            .map(|(_, item)| item.clone())
-            .collect();
-        if items.is_empty() {
-            Err("No inventory items found.".to_string())
-        } else {
-            Ok(items)
-        }
-    })
-}
-
-#[ic_cdk::update]
-fn create_invoice(payload: InvoicePayload) -> Result<Invoice, String> {
-    // Check if customer exists
-    let customer_exists =
-        CUSTOMERS_STORAGE.with(|storage| storage.borrow().contains_key(&payload.customer_id));
-    if !customer_exists {
-        return Err("Customer ID does not exist.".to_string());
-    }
-
-    let id = ID_COUNTER.with(|counter| {
-        let current_value = *counter.borrow().get();
-        counter
-            .borrow_mut()
-            .set(current_value + 1)
-            .expect("Failed to increment ID counter");
-        current_value
-    });
-
-    let invoice = Invoice::new(id, payload.customer_id, payload.amount, time());
-    INVOICES_STORAGE.with(|storage| storage.borrow_mut().insert(invoice.id, invoice.clone()));
-    Ok(invoice)
-}
-
-// Function to get customer invoices using customer id and sum the invoices
-#[ic_cdk::query]
-fn get_customer_invoices(customer_id: u64) -> Result<u32, String> {
-    let invoices = INVOICES_STORAGE.with(|storage| {
+fn get_executor(executor_id: u64) -> Result<Executor, String> {
+    EXECUTORS_STORAGE.with(|storage| {
         storage
             .borrow()
-            .iter()
-            .filter(|(_, invoice)| invoice.customer_id == customer_id)
-            .map(|(_, invoice)| invoice.amount)
-            .collect::<Vec<u32>>()
-    });
-
-    if invoices.is_empty() {
-        return Err("No invoices found for the customer.".to_string());
-    }
-
-    Ok(invoices.iter().sum())
+            .get(&executor_id)
+            .clone()
+            .ok_or_else(|| "Executor not found".to_string())
+    })
 }
 
-// Function to retrieve all invoices, handling the case where no invoices are found
 #[ic_cdk::query]
-fn get_all_invoices() -> Result<Vec<Invoice>, String> {
-    INVOICES_STORAGE.with(|storage| {
-        let invoices: Vec<Invoice> = storage
+fn get_all_executors() -> Result<Vec<Executor>, String> {
+    EXECUTORS_STORAGE.with(|storage| {
+        let executors: Vec<Executor> = storage
             .borrow()
             .iter()
-            .map(|(_, invoice)| invoice.clone())
+            .map(|(_, executor)| executor.clone())
             .collect();
-        if invoices.is_empty() {
-            Err("No invoices found.".to_string())
+        if executors.is_empty() {
+            Err("No executors found.".to_string())
         } else {
-            Ok(invoices)
+            Ok(executors)
+        }
+    })
+}
+
+#[ic_cdk::query]
+fn get_will(will_id: u64) -> Result<Will, String> {
+    WILLS_STORAGE.with(|storage| {
+        storage
+            .borrow()
+            .get(&will_id)
+            .clone()
+            .ok_or_else(|| "Will not found".to_string())
+    })
+}
+
+#[ic_cdk::query]
+fn get_all_wills() -> Result<Vec<Will>, String> {
+    WILLS_STORAGE.with(|storage| {
+        let wills: Vec<Will> = storage
+            .borrow()
+            .iter()
+            .map(|(_, will)| will.clone())
+            .collect();
+        if wills.is_empty() {
+            Err("No wills found.".to_string())
+        } else {
+            Ok(wills)
+        }
+    })
+}
+
+#[ic_cdk::query]
+fn get_all_assets() -> Result<Vec<Asset>, String> {
+    ASSETS_STORAGE.with(|storage| {
+        let assets: Vec<Asset> = storage
+            .borrow()
+            .iter()
+            .map(|(_, asset)| asset.clone())
+            .collect();
+        if assets.is_empty() {
+            Err("No assets found.".to_string())
+        } else {
+            Ok(assets)
+        }
+    })
+}
+
+#[ic_cdk::query]
+fn get_all_beneficiaries() -> Result<Vec<Beneficiary>, String> {
+    BENEFICIARIES_STORAGE.with(|storage| {
+        let beneficiaries: Vec<Beneficiary> = storage
+            .borrow()
+            .iter()
+            .map(|(_, beneficiary)| beneficiary.clone())
+            .collect();
+        if beneficiaries.is_empty() {
+            Err("No beneficiaries found.".to_string())
+        } else {
+            Ok(beneficiaries)
         }
     })
 }
@@ -617,5 +595,5 @@ enum Error {
     UnAuthorized { msg: String },
 }
 
-// need this to generate candid
+// Candid export
 ic_cdk::export_candid!();
