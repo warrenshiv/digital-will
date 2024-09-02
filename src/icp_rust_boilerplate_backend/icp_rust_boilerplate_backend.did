@@ -1,0 +1,83 @@
+type Customer = record {
+  id : nat64;
+  contact : text;
+  name : text;
+  created_at : nat64;
+  email : text;
+};
+type CustomerPayload = record { contact : text; name : text; email : text };
+type Inventory = record {
+  id : nat64;
+  cost : nat32;
+  created_at : nat64;
+  quantity : nat32;
+  part_name : text;
+};
+type InventoryPayload = record {
+  cost : nat32;
+  quantity : nat32;
+  part_name : text;
+};
+type Invoice = record {
+  id : nat64;
+  date : nat64;
+  created_at : nat64;
+  customer_id : nat64;
+  amount : nat32;
+};
+type InvoicePayload = record { customer_id : nat64; amount : nat32 };
+type Result = variant { Ok : Customer; Err : text };
+type Result_1 = variant { Ok : Inventory; Err : text };
+type Result_10 = variant { Ok : nat32; Err : text };
+type Result_2 = variant { Ok : Invoice; Err : text };
+type Result_3 = variant { Ok : Service; Err : text };
+type Result_4 = variant { Ok : Vehicle; Err : text };
+type Result_5 = variant { Ok : vec Customer; Err : text };
+type Result_6 = variant { Ok : vec Inventory; Err : text };
+type Result_7 = variant { Ok : vec Invoice; Err : text };
+type Result_8 = variant { Ok : vec Service; Err : text };
+type Result_9 = variant { Ok : vec Vehicle; Err : text };
+type Service = record {
+  id : nat64;
+  vehicle_id : nat64;
+  cost : nat32;
+  date : nat64;
+  description : text;
+  created_at : nat64;
+};
+type ServicePayload = record {
+  vehicle_id : nat64;
+  cost : nat32;
+  description : text;
+};
+type Vehicle = record {
+  id : nat64;
+  model : text;
+  make : text;
+  year : nat32;
+  created_at : nat64;
+  customer_id : nat64;
+  license_plate : text;
+};
+type VehiclePayload = record {
+  model : text;
+  make : text;
+  year : nat32;
+  customer_id : nat64;
+  license_plate : text;
+};
+service : {
+  create_customer : (CustomerPayload) -> (Result);
+  create_inventory_item : (InventoryPayload) -> (Result_1);
+  create_invoice : (InvoicePayload) -> (Result_2);
+  create_service : (ServicePayload) -> (Result_3);
+  create_vehicle : (VehiclePayload) -> (Result_4);
+  get_all_customers : () -> (Result_5) query;
+  get_all_inventory_items : () -> (Result_6) query;
+  get_all_invoices : () -> (Result_7) query;
+  get_all_services : () -> (Result_8) query;
+  get_all_vehicles : () -> (Result_9) query;
+  get_customer_invoices : (nat64) -> (Result_10) query;
+  get_inventory_quantity : (text) -> (Result_10) query;
+  update_customer : (nat64, CustomerPayload) -> (Result);
+}
